@@ -42,7 +42,6 @@ namespace ncmdumpGUI
                         String value = config[1];
                         if (key == "ncmFolderPath")
                         {
-                            this.txtNcmFolderPath.Text = value;
                         }
                         else if (key == "mp3FolderPath")
                         {
@@ -70,10 +69,10 @@ namespace ncmdumpGUI
             DialogResult dlg = folderBrowserDialog.ShowDialog();
             if (dlg == DialogResult.OK)
             {
-                txtNcmFolderPath.Text = folderBrowserDialog.SelectedPath;
+                //txtNcmFolderPath.Text = folderBrowserDialog.SelectedPath;
             }
         }
-
+        bool waitSelectMp3Folder = false;
         private void btnSelectMp3Folder_Click(object sender, EventArgs e)
         {
             folderBrowserDialog.SelectedPath = "";
@@ -81,6 +80,12 @@ namespace ncmdumpGUI
             if (dlg == DialogResult.OK)
             {
                 txtMp3FolderPath.Text = folderBrowserDialog.SelectedPath;
+                if (waitSelectMp3Folder)
+                {
+                    waitSelectMp3Folder = false;
+
+                    ConvertProc();
+                }
             }
         }
 
@@ -96,22 +101,21 @@ namespace ncmdumpGUI
 
         private void ConvertProc()
         {
-            ProgressDialogControl progressDialogControl = new ProgressDialogControl();
+            label_State.Text = "-";
+            //ProgressDialogControl progressDialogControl = new ProgressDialogControl();
             IAsyncResult asyncResult;
             try
             {
-                BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkStart, "正在转换文件，请稍候......");
-                while (!progressDialogControl.IsProgressDlgHandleCreate)
-                {
-                    Thread.Sleep(100);
-                }
+                //BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkStart, "正在转换文件，请稍候......");
+                //while (!progressDialogControl.IsProgressDlgHandleCreate)
+                //{
+                //    Thread.Sleep(100);
+                //}
 
-                string ncmFolderPath = "";
                 string mp3FolderPath = "";
 
                 delUIThreadOperation = new DelUIThreadOperation(delegate ()
                 {
-                    ncmFolderPath = this.txtNcmFolderPath.Text;
                     mp3FolderPath = this.txtMp3FolderPath.Text;
                 });
                 asyncResult = BeginInvoke(delUIThreadOperation);
@@ -125,7 +129,6 @@ namespace ncmdumpGUI
                 try
                 {
                     configFileWriter = configFileInfo.CreateText();
-                    configFileWriter.WriteLine("ncmFolderPath=" + ncmFolderPath);
                     configFileWriter.WriteLine("mp3FolderPath=" + mp3FolderPath);
                     configFileWriter.Flush();
                 }
@@ -135,13 +138,30 @@ namespace ncmdumpGUI
                         configFileWriter.Close();
                 }
 
-                DirectoryInfo ncmDirctoryInfo = new DirectoryInfo(ncmFolderPath);
                 DirectoryInfo mp3DirctoryInfo = new DirectoryInfo(mp3FolderPath);
-                foreach (FileInfo fileInfo in ncmDirctoryInfo.GetFiles("*.ncm"))
+                foreach (ListViewItem item in FileListView.Items)
                 {
-                    BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkUpdate, "转换：" + fileInfo.Name);
-                    NeteaseCrypto neteaseFile = new NeteaseCrypto(fileInfo);
-                    neteaseFile.Dump(mp3FolderPath);
+                    var fileInfo = new FileInfo(item.SubItems[1].Text);
+                    if (!fileInfo.Exists)
+                    {
+                        filePathToListItem[fileInfo.FullName].SubItems[2].Text = "文件不存在";
+                        continue;
+                    }
+                    if(filePathToListItem[fileInfo.FullName].SubItems[2].Text == "转换完成")
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        //BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkUpdate, "转换：" + fileInfo.Name);
+                        NeteaseCrypto neteaseFile = new NeteaseCrypto(fileInfo);
+                        neteaseFile.Dump(mp3FolderPath);
+                        filePathToListItem[fileInfo.FullName].SubItems[2].Text = "转换完成";
+                    }
+                    catch(Exception ex)
+                    {
+                        filePathToListItem[fileInfo.FullName].SubItems[2].Text = "转换失败";
+                    }
                 }
 
                 delUIThreadOperation = new DelUIThreadOperation(delegate ()
@@ -162,12 +182,56 @@ namespace ncmdumpGUI
             }
             finally
             {
-                if (progressDialogControl.IsProgressDlgAlive)
+                //if (progressDialogControl.IsProgressDlgAlive)
+                //{
+                //    asyncResult = BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkStop, "");
+                //    EndInvoke(asyncResult);
+                //}
+            }
+        }
+        private Dictionary<string, ListViewItem> filePathToListItem = new Dictionary<string, ListViewItem>();
+        private void FileListView_DragDrop(object sender, DragEventArgs e)
+        {
+            var dropData = (System.Array)e.Data.GetData(DataFormats.FileDrop);
+            foreach(string path in dropData)
+            {
+                FileInfo file = new FileInfo(path);
+                if (file.Exists && file.Extension.ToLower() == ".ncm")
                 {
-                    asyncResult = BeginInvoke(progressDialogControl.delProgressDlg, ProgressStatusType.BackgroundWorkStop, "");
-                    EndInvoke(asyncResult);
+                    //在列表中添加项
+                    var item = new ListViewItem(new string[] { file.Name, file.FullName, "" });
+                    FileListView.Items.Add(item);
+                    filePathToListItem.Add(file.FullName, item);
                 }
             }
+            if (Directory.Exists(txtMp3FolderPath.Text))
+            {
+                ConvertProc();
+            }
+            else
+            {
+                waitSelectMp3Folder = true;
+                label_State.Text = "请选择输出目录";
+            }
+        }
+
+        private void FileListView_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effect = DragDropEffects.Link;
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void btnCleanList_Click(object sender, EventArgs e)
+        {
+            backgroundWork?.Abort();
+            FileListView.Items.Clear();
+            filePathToListItem.Clear();
         }
     }
 }
