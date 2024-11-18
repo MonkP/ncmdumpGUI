@@ -9,12 +9,12 @@
 ### 使用方法
 
 1. Windows7及以上版本
-2. 先安装`.NET Framework 4.6`（或其他兼容版本）
+2. 先安装`.NET Framework 4.8`（或其他兼容版本）
 3. 然后运行`ncmdumpGUI.exe`
 4. 根据界面提示操作即可。
 
 ### 开发环境
 
-Visual Studio 2017
+Visual Studio 2022
 
-.NET Framework 4.6.1
+.NET Framework 4.8
