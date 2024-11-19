@@ -11,7 +11,7 @@ namespace ncmdumpGUI
     class NeteaseCopyrightData
     {
         [DataMember(Name = "musicId")]
-        public int MusicId { get; set; }
+        public long MusicId { get; set; }
 
         [DataMember(Name = "musicName")]
         public string MusicName { get; set; }
@@ -20,7 +20,7 @@ namespace ncmdumpGUI
         public List<List<object>> Artist { get; set; }
 
         [DataMember(Name = "albumId")]
-        public int AlbumId { get; set; }
+        public long AlbumId { get; set; }
 
         [DataMember(Name = "album")]
         public string Album { get; set; }
